@@ -2,6 +2,7 @@ import csv
 import sklearn
 import pandas as pd
 import math
+import mlfunctions as mlf
 from math import sqrt
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
@@ -22,7 +23,7 @@ from sklearn import metrics
 import numpy as np
 from sklearn.model_selection import cross_val_score
 
-def remodelData(dataFrame):
+def remodelDataNYC(dataFrame):
     #remodle datetime column
     dataFrame['date'], dataFrame['time'] = dataFrame['pickup_datetime'].str.split(' ', 0).str #Split data and time into two features
     del dataFrame['pickup_datetime'] #remover old date+time feature
@@ -30,31 +31,42 @@ def remodelData(dataFrame):
     del dataFrame['id']
     dataFrame['time'] = pd.to_datetime(dataFrame['time']) #convert time to pandas datetime
     dataFrame['time'] = dataFrame['time'].dt.hour + dataFrame['time'].dt.minute/60 #converst datatime to float
-    #print dataFrame
-    #print '\n'
+
     return dataFrame
 
-def linearReg(dataFrame):
+def remodelDataSUM(dataFrame):
+    #remodle datetime column
+    del dataFrame['Instance'] #remove instance
+    del dataFrame['Target Class']
+    return dataFrame
+
+def remodelDataSUMN(dataFrame):
+    #remodle datetime column
+    del dataFrame['Instance'] #remove instance
+    del dataFrame['Noisy Target Class']
+    return dataFrame
+
+def linearReg(dataFrame, yVar):
     # Split data into X and and Y
-    X = dataFrame.drop('trip_duration', axis=1)
-    y = dataFrame [['trip_duration']]
+    X = dataFrame.drop(yVar, axis=1)
+    y = dataFrame [[yVar]]
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
     
     #Train Model
     regression_model = LinearRegression()
-    regression_model.fit(X_train, y_train)
+    regression_model.fit(X_train.values, y_train.values)
     
     #Evaluate
     evaluateModelReg(regression_model,X,y,y_test,X_test)
     
 
 
-def randomForestRegression(dataFrame):
+def randomForestRegression(dataFrame, yVar):
     
     # Split data into X and and Y
-    X = dataFrame.drop('trip_duration', axis=1)
-    y = dataFrame [['trip_duration']]
+    X = dataFrame.drop(yVar, axis=1)
+    y = dataFrame [[yVar]]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
     
     #Standardising data
@@ -70,10 +82,10 @@ def randomForestRegression(dataFrame):
     evaluateModelReg(rfr,X,y,y_test,X_test)
 
    
-def logisticReg(dataFrame):
+def logisticReg(dataFrame, yVar):
     # Split data into X and and Y
-    X = dataFrame.drop('trip_duration', axis=1)
-    y = dataFrame [['trip_duration']]
+    X = dataFrame.drop(yVar, axis=1)
+    y = dataFrame [[yVar]]
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=1)
     
@@ -82,21 +94,21 @@ def logisticReg(dataFrame):
     lr.fit(X_train,y_train.values.ravel())
     
     #evaluate
-    #evaluateModelLog(lr,X,y,y_test,X_test)
+    evaluateModelLog(lr,X,y,y_test,X_test)
 
-def linearSVC(dataFrame):
+def linearSVC(dataFrame, yVar):
     # Split data into X and and Y
-    X = dataFrame.drop('trip_duration', axis=1)
-    y = dataFrame [['trip_duration']]
+    X = dataFrame.drop(yVar, axis=1)
+    y = dataFrame [[yVar]]
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=1)
     
     #Train Model
     svc = svm.SVC(kernel='linear', C=1.0)
-    svc.fit(X_train,y_train)
+    svc.fit(X_train,y_train.values.ravel())
 
     #evaluate
-    #evaluateModelLog(svc,X,y,y_test,X_test)
+    evaluateModelLog(svc,X,y,y_test,X_test)
 
 def createDummiesNYC(dataFrame):
     #cut trip duration and time
@@ -105,9 +117,24 @@ def createDummiesNYC(dataFrame):
     dataFrame['passenger_count'] = pd.cut(dataFrame['passenger_count'], [0,1,2,3,4,6], labels=[1,2,3,4,5])
     dummyvid = pd.get_dummies(dataFrame['vendor_id'], prefix='vendor_id')
     dataFrame = dataFrame[['trip_duration', 'time', 'passenger_count']].join(dummyvid.ix[:, 'vendor_id_2':])
-    print dataFrame.head()
+
+
+    #Getting rid of NaNs
+    #dataFrame = dataFrame.cat.add_categories([1])
+    dataFrame = dataFrame.fillna(1)
     return dataFrame
     
+def createDummiesSUM(dataFrame, maximum):
+    #cut features into categories
+    cols = [col for col in dataFrame.columns]
+    
+    for cols in dataFrame:
+        dataFrame[cols] = pd.cut(dataFrame[cols], [0,50,5000,50000,500000,maximum], labels=[1,2,3,4,5])
+    
+    #Getting rid of NaNs
+    #dataFrame = dataFrame.cat.add_categories([1])
+    #dataFrame = dataFrame.fillna(1)
+    return dataFrame
 
 
 def evaluateModelReg(regression_model,X,y,y_test,X_test):
@@ -149,93 +176,3 @@ def evaluateModelLog(classification_model,X,y,y_test,X_test):
     print precision
     print "\n"
 
-
-#NYCdataset = open("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", "r")
-#NYCTripDuration = csv.reader(NYCdataset)
-df100 = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=100) #reading in CSV dataset
-#df500 = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=500)
-#df1000 = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=1000)
-#df5000 = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=5000)
-#df10000 = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=10000)
-#df50000 = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=50000)
-df100000 = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=100000)
-#df500k = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=500000)
-#df1m = pd.read_csv("/Users/HughLavery/Documents/College/Year 4/CS4404/New York City Taxi Trip Duration/train.csv", nrows=1000000)
-
-
-df100 = remodelData(df100)
-#df500 = remodelData(df500)
-#df1000 = remodelData(df1000)
-#df5000 = remodelData(df5000)
-#df10000 = remodelData(df10000)
-#df50000 = remodelData(df50000)
-df100000 = remodelData(df100000)
-#df500k = remodelData(df500k)
-#df1m = remodelData(df1m)
-
-
-print "data remodled"
-
-#working!
-#linearReg(df100)
-#linearReg(df500)
-#linearReg(df1000)
-#linearReg(df5000)
-#linearReg(df10000)
-#linearReg(df50000)
-linearReg(df100000)
-#linearReg(df500k)
-#linearReg(df1m)
-
-print "linear regression done"
-
-#randomForestRegression(df100)
-#randomForestRegression(df500)
-#randomForestRegression(df1000)
-#randomForestRegression(df5000)
-#randomForestRegression(df10000)
-#randomForestRegression(df50000)
-randomForestRegression(df100000)
-#randomForestRegression(df500k)
-#randomForestRegression(df1m)
-
-print "random forest done"
-
-npany = np.any(np.isnan(df100000))
-print npany
-npall = np.all(np.isfinite(df100000))
-print npall
-
-df100 = createDummiesNYC(df100)
-#df500 = createDummiesNYC(df500)
-#df1000 = createDummiesNYC(df1000)
-#df5000 = createDummiesNYC(df5000)
-#df10000 = createDummiesNYC(df10000)
-#df50000 = createDummiesNYC(df50000)
-df100000 = createDummiesNYC(df100000)
-#df500k = createDummiesNYC(df500k)
-#df1m = createDummiesNYC(df1m)
-
-logisticReg(df100)
-#logisticReg(df500)
-#logisticReg(df1000)
-#logisticReg(df5000)
-#logisticReg(df10000)
-#logisticReg(df50000)
-logisticReg(df100000)
-#logisticReg(df500k)
-#logisticReg(df1m)
-
-
-
-linearSVC(df100)
-#linearSVC(df500)
-#linearSVC(df1000)
-#linearSVC(df5000)
-#linearSVC(df10000)
-#linearSVC(df50000)
-linearSVC(df100000)
-#linearSVC(df500k)
-#linearSVC(df1m)
-
-print "done"
