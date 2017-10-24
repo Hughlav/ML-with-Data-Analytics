@@ -16,6 +16,7 @@ df100000 = pd.read_csv(csv_file, nrows=100000)
 #df500k = pd.read_csv(csv_file, nrows=500000)
 #df1m = pd.read_csv(csv_file, nrows=1000000)
 
+print df100.head()
 
 df100 = mlf.remodelDataNYC(df100)
 #df500 = remodelDataNYC(df500)
@@ -53,6 +54,7 @@ mlf.randomForestRegression(df100,yVar)
 #mlf.randomForestRegression(df500k)
 #mlf.randomForestRegression(df1m)
 
+print df100.head()
 
 df100 = mlf.createDummiesNYC(df100)
 #df500 = createDummiesNYC(df500)
@@ -87,5 +89,7 @@ mlf.linearSVC(df100,yVar)
 #mlf.linearSVC(df100000,yVar)
 #mlf.linearSVC(df500k)
 #mlf.linearSVC(df1m)
+
+print df100.head()
 
 print "done"

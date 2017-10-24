@@ -14,6 +14,7 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
+from sklearn.preprocessing import MinMaxScaler
 from sklearn import svm
 from sklearn import datasets
 from sklearn import svm
@@ -22,6 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn import metrics
 import numpy as np
 from sklearn.model_selection import cross_val_score
+
 
 def remodelDataNYC(dataFrame):
     #remodle datetime column
@@ -32,21 +34,32 @@ def remodelDataNYC(dataFrame):
     dataFrame['time'] = pd.to_datetime(dataFrame['time']) #convert time to pandas datetime
     dataFrame['time'] = dataFrame['time'].dt.hour + dataFrame['time'].dt.minute/60 #converst datatime to float
 
+    scaling(dataFrame)
     return dataFrame
 
 def remodelDataSUM(dataFrame):
     #remodle datetime column
     del dataFrame['Instance'] #remove instance
     del dataFrame['Target Class']
+    scaling(dataFrame)
     return dataFrame
 
 def remodelDataSUMN(dataFrame):
     #remodle datetime column
     del dataFrame['Instance'] #remove instance
     del dataFrame['Noisy Target Class']
+    scaling(dataFrame)
     return dataFrame
 
+def scaling(df):
+    scaler = MinMaxScaler()
+    df[df.columns] = scaler.fit_transform(df[df.columns])
+
+    return df
+
 def linearReg(dataFrame, yVar):
+    size = dataFrame.shape
+    print "Linear regression on chunk: " , size
     # Split data into X and and Y
     X = dataFrame.drop(yVar, axis=1)
     y = dataFrame [[yVar]]
@@ -63,7 +76,9 @@ def linearReg(dataFrame, yVar):
 
 
 def randomForestRegression(dataFrame, yVar):
-    
+    size = dataFrame.shape
+    print "Random Forest on chunk: " , size
+
     # Split data into X and and Y
     X = dataFrame.drop(yVar, axis=1)
     y = dataFrame [[yVar]]
@@ -83,6 +98,9 @@ def randomForestRegression(dataFrame, yVar):
 
    
 def logisticReg(dataFrame, yVar):
+    size = dataFrame.shape
+    print "Logistic regression on chunk: " , size
+
     # Split data into X and and Y
     X = dataFrame.drop(yVar, axis=1)
     y = dataFrame [[yVar]]
@@ -97,6 +115,9 @@ def logisticReg(dataFrame, yVar):
     evaluateModelLog(lr,X,y,y_test,X_test)
 
 def linearSVC(dataFrame, yVar):
+    size = dataFrame.shape
+    print "Linear SVC on chunk: " , size
+
     # Split data into X and and Y
     X = dataFrame.drop(yVar, axis=1)
     y = dataFrame [[yVar]]
@@ -112,9 +133,9 @@ def linearSVC(dataFrame, yVar):
 
 def createDummiesNYC(dataFrame):
     #cut trip duration and time
-    dataFrame['time'] = pd.cut(dataFrame['time'], [0,5,10,15,20,24], labels=[1,2,3,4,5])
-    dataFrame['trip_duration'] = pd.cut(dataFrame['trip_duration'], [0,2500,5000,7500,10000,3600000], labels=[1,2,3,4,5])
-    dataFrame['passenger_count'] = pd.cut(dataFrame['passenger_count'], [0,1,2,3,4,6], labels=[1,2,3,4,5])
+    dataFrame['time'] = pd.cut(dataFrame['time'], 5, labels=[1,2,3,4,5])
+    dataFrame['trip_duration'] = pd.cut(dataFrame['trip_duration'], 5, labels=[1,2,3,4,5])
+    dataFrame['passenger_count'] = pd.cut(dataFrame['passenger_count'], 5, labels=[1,2,3,4,5])
     dummyvid = pd.get_dummies(dataFrame['vendor_id'], prefix='vendor_id')
     dataFrame = dataFrame[['trip_duration', 'time', 'passenger_count']].join(dummyvid.ix[:, 'vendor_id_2':])
 
@@ -129,7 +150,20 @@ def createDummiesSUM(dataFrame, maximum):
     cols = [col for col in dataFrame.columns]
     
     for cols in dataFrame:
-        dataFrame[cols] = pd.cut(dataFrame[cols], [0,50,5000,50000,500000,maximum], labels=[1,2,3,4,5])
+        dataFrame[cols] = pd.cut(dataFrame[cols], 5, labels=[1,2,3,4,5])
+    
+    #Getting rid of NaNs
+    #dataFrame = dataFrame.cat.add_categories([1])
+    #dataFrame = dataFrame.fillna(1)
+    return dataFrame
+
+
+def createDummiesMSD(dataFrame):
+    #cut features into categories
+    cols = [col for col in dataFrame.columns]
+    
+    for cols in dataFrame:
+        dataFrame[cols] = pd.cut(dataFrame[cols], 5, labels=[1,2,3,4,5])
     
     #Getting rid of NaNs
     #dataFrame = dataFrame.cat.add_categories([1])
@@ -138,40 +172,37 @@ def createDummiesSUM(dataFrame, maximum):
 
 
 def evaluateModelReg(regression_model,X,y,y_test,X_test):
-    #10 fold cross validation
-    scores = cross_val_score(regression_model,X,y.values.ravel(),cv=10)
-    print "10 fold cross vaidation scores"
-    print np.mean(scores)
 
     #Calculating RMSE for Evaluation
     expect = y_test.values.ravel()
     predict = regression_model.predict(X_test)
-    MSE = mean_squared_error(expect,predict)
+    #MSE = mean_squared_error(expect,predict)
+    MSE = cross_val_score(regression_model,X,y.values.ravel(),cv=10, scoring='neg_mean_squared_error')
+    MSE = -(np.mean(MSE))
     RMSE = sqrt(MSE)
     print "printing RMSE"
     print RMSE
 
     #Calculating MEA (mean absolute error)
-    MEA = mean_absolute_error(expect,predict)
+    MEA = cross_val_score(regression_model,X,y.values.ravel(),cv=10, scoring='neg_mean_absolute_error')
+    MEA = -(np.mean(MEA))
     print "Mean absolute error: "
     print MEA
     print "\n\n"
 
 def evaluateModelLog(classification_model,X,y,y_test,X_test):
-    #10 fold cross validation
-    scores = cross_val_score(classification_model,X,y.values.ravel(),cv=10)
-    print "10 fold cross vaidation scores"
-    print np.mean(scores)
-
+    
     #Accuracy
     expect = y_test.values.ravel()
     predict = classification_model.predict(X_test)
-    accuracy = accuracy_score(expect, predict)
+    accuracy = cross_val_score(classification_model,X,y.values.ravel(),cv=10,scoring='accuracy')
+    accuracy = np.mean(accuracy)
     print "Accuracy is: "
     print accuracy
 
     #Precision weighted
-    precision = precision_score(expect, predict, average='weighted')
+    precision = cross_val_score(classification_model,X,y.values.ravel(),cv=10,scoring='precision_weighted')
+    precision = np.mean(precision)
     print "Precision is: "
     print precision
     print "\n"
